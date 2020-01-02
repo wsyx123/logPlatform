@@ -3,6 +3,9 @@ from django.contrib.auth.models import User
 
 # Create your models here.
 
+class UserProfile(models.Model):
+    user = models.ForeignKey(to=User,on_delete=models.CASCADE)
+    phone = models.CharField(max_length=13,verbose_name='电话')
 
 class Business(models.Model):
     lifecycle = (
@@ -69,6 +72,11 @@ class IndexRule(models.Model):
     index_suffix = models.CharField(max_length=64,verbose_name='索引后缀')
     index_period = models.IntegerField(choices=index_period_option,default=2)
 
+class AlertHost(models.Model):
+    host = models.GenericIPAddressField()
+    port = models.IntegerField()
+    enabled = models.BooleanField()
+
 class GrafanaUser(models.Model):
     name = models.CharField(max_length=32,unique=True,verbose_name='用户名')
     password = models.CharField(max_length=64,verbose_name='密码')
@@ -115,8 +123,8 @@ class LogAlarmRule(models.Model):
         (3,'高')
         )
     date_option = (
-        (1,'工作日'),
-        (2,'全年')
+        (1,'全年'),
+        (2,'工作日')
         )
     time_type_option = (
         (1,'全天'),
@@ -153,7 +161,7 @@ class LogAlarmRule(models.Model):
 
 class LogAlarmExpression(models.Model):
     '''
-    大于(gt) , 小于(lt), 等于(eq), 大于等于(ge), 小于等于(le), 不等于(ne)
+    大于(gt) , 小于(lt), 等于(eq), 大于等于(ge), 小于等于(le), 不等于(ne), 包含(in)
     告警模块在判断时根据 operator把value转换成整型 
     '''
     rule = models.ForeignKey(to=LogAlarmRule,on_delete=models.CASCADE)

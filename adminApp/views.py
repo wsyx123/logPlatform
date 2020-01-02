@@ -14,8 +14,10 @@ from rest_framework.authentication import BasicAuthentication,TokenAuthenticatio
 from adminApp.menus import get_menus
 from adminApp.models import Business,IndexRule,EsCluster,LogStructure,LogAlarmRule,LogAlarmExpression
 from adminApp.grafana_api import create_grafana_info
+from alertMasterAPI.api import add_rule,delete_rule
 
 from rest_framework import status
+from django.core import serializers
 
 class LoginView(APIView):
     authentication_classes = [BasicAuthentication]
@@ -166,12 +168,43 @@ class LogAlarmRuleViewSet(viewsets.ModelViewSet):
     queryset = LogAlarmRule.objects.all()
     serializer_class = LogAlarmRuleSerializer
     
-    def perform_update(self, serializer):
-        '''
-        重写更新, 如果request.method = PATCH and request.data.has_key('enabled'), 通知关键字告警程序,删除或推送告警规则
-        '''
-        print(self.request.method,self.request.data)
-        serializer.save()
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        data = request.data
+        
+        if self.request.method == 'PATCH':
+            '''
+            通知关键字告警程序,删除或推送告警规则
+            '''
+            ruleid = kwargs['pk']
+            if self.request.data.get('enabled'):
+                add_rule(ruleid)
+            else:
+                delete_rule(ruleid)
+            
+        else:
+            data['notifier'] = [user['id'] for user in data['notifier']]
+            data['notify_way'] = ','.join(data['notify_way'])
+            data['owner'] = request.user.id
+        serializer = self.get_serializer(instance, data=data, partial=partial)
+        serializer.is_valid()
+        if serializer.errors:
+            status = False
+            message = serializer.errors
+        else:
+            status = True
+            message = None
+            if self.request.method == 'PUT':
+                self.save_expression('update',data)
+        self.perform_update(serializer)
+        
+        if getattr(instance, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            instance._prefetched_objects_cache = {}
+
+        return Response({'status':status,'message':message})
     
     def get_queryset(self):
         '''
@@ -234,11 +267,13 @@ class LogAlarmRuleViewSet(viewsets.ModelViewSet):
         else:
             status = True
             message = None
-            self.save_expression(data) #告警规则保存成功再保存表达式, 表达式依赖 规则ID
+            self.save_expression('create',data) #告警规则保存成功再保存表达式, 表达式依赖 规则ID
         return Response({'status':status,'message':message})
     
-    def save_expression(self,data):
+    def save_expression(self,action,data):
         rule_instance = LogAlarmRule.objects.get(name=data['name'])
+        if action == 'update':
+            LogAlarmExpression.objects.filter(rule=rule_instance).delete()
         expression_list = []
         for expression in data['expressions']:
             expression_id = expression['expression_id']

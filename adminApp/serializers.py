@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
 from django.contrib.auth.models import User,Group
-from adminApp.models import Business,Component,Host,EsCluster,IndexRule,LogStructure,LogAlarmRule,LogAlarmExpression
+from adminApp.models import Business,Component,Host,EsCluster,IndexRule,LogStructure,\
+LogAlarmRule,LogAlarmExpression
 from rest_framework import serializers
 
 
